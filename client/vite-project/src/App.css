@@ -398,6 +398,12 @@ td small {
   color: #166534;
 }
 
+.pending {
+  background: #fef3c7;
+
+  color: #92400e;
+}
+
 .checked-out {
   background: #fee2e2;
 

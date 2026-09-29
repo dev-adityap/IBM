@@ -24,6 +24,13 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [search, setSearch] = useState("");
   const [editingVisitor, setEditingVisitor] = useState(null);
+  const [showRequest, setShowRequest] = useState(false);
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [requestData, setRequestData] = useState({
+    organization: "",
+    personToMeet: "",
+    purpose: ""
+  });
 
   const [formData, setFormData] = useState({
     visitorName: "",
@@ -131,6 +138,76 @@ function App() {
   };
 
   // ============================================
+  // EDIT OWN REQUEST (PENDING ONLY)
+  // ============================================
+
+  const handleEditRequest = (visitor) => {
+    if (visitor.status !== "Pending") {
+      alert(
+        "This visit can no longer be edited."
+      );
+      return;
+    }
+
+    setEditingRequest(visitor);
+
+    setRequestData({
+      organization: visitor.organization || "",
+      personToMeet: visitor.personToMeet || "",
+      purpose: visitor.purpose || ""
+    });
+
+    setShowRequest(true);
+  };
+
+  // ============================================
+  // VISITOR REQUEST A VISIT
+  // ============================================
+
+  const handleRequestSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      if (editingRequest) {
+        await api.put(
+          `/${editingRequest._id}`,
+          requestData
+        );
+
+        alert("Visit request updated.");
+      } else {
+        await api.post("/", requestData);
+
+        alert(
+          "Visit request sent. An admin will approve it."
+        );
+      }
+
+      setRequestData({
+        organization: "",
+        personToMeet: "",
+        purpose: ""
+      });
+
+      setEditingRequest(null);
+      setShowRequest(false);
+
+      fetchVisitors();
+    } catch (error) {
+      console.error("Error saving request:", error);
+
+      if (error.response?.status === 403) {
+        alert(
+          error.response?.data?.message ||
+            "You cannot edit this visit."
+        );
+      } else {
+        alert("Failed to save visit request");
+      }
+    }
+  };
+
+  // ============================================
   // ADD VISITOR
   // ============================================
 
@@ -212,28 +289,30 @@ function App() {
   };
 
   // ============================================
-  // CHECK OUT VISITOR
+  // UPDATE VISITOR STATUS
   // ============================================
 
-  const handleCheckOut = async (visitor) => {
+  const updateStatus = async (visitor, status) => {
     if (!canManageVisitors) {
-      alert("You do not have permission to check out visitors.");
+      alert(
+        "You do not have permission to update visitors."
+      );
       return;
     }
 
     try {
-      await api.put(`/${visitor._id}`, {
-        status: "Checked Out"
-      });
+      await api.put(`/${visitor._id}`, { status });
 
       fetchVisitors();
     } catch (error) {
-      console.error("Error checking out visitor:", error);
+      console.error("Error updating status:", error);
 
       if (error.response?.status === 403) {
-        alert("You do not have permission to check out visitors.");
+        alert(
+          "You do not have permission to update visitors."
+        );
       } else {
-        alert("Failed to check out visitor");
+        alert("Failed to update visitor");
       }
     }
   };
@@ -274,21 +353,12 @@ function App() {
   };
 
   // ============================================
-  // ROLE-BASED VISIBLE RECORDS
+  // VISIBLE RECORDS
   // ============================================
 
-  // Admins see every record, visitors only their own
-  const visibleVisitors = isAdmin
-    ? visitors
-    : visitors.filter(
-        (visitor) =>
-          visitor.visitorName?.toLowerCase() ===
-            user?.name?.toLowerCase() ||
-          (visitor.email &&
-            user?.email &&
-            visitor.email.toLowerCase() ===
-              user.email.toLowerCase())
-      );
+  // The server already scopes results per role, so
+  // the client uses the response as-is
+  const visibleVisitors = visitors;
 
   // ============================================
   // SEARCH
@@ -313,6 +383,24 @@ function App() {
   const checkedOut = visitors.filter(
     (visitor) => visitor.status === "Checked Out"
   ).length;
+
+  const pending = visitors.filter(
+    (visitor) => visitor.status === "Pending"
+  ).length;
+
+  // ============================================
+  // STATUS STYLE
+  // ============================================
+
+  const statusClass = (status) => {
+    if (status === "Pending") {
+      return "status pending";
+    }
+
+    return status === "Checked In"
+      ? "status checked-in"
+      : "status checked-out";
+  };
 
   // ============================================
   // LOGIN SCREEN
@@ -539,6 +627,29 @@ function App() {
               </div>
 
 
+              {/* PENDING - REQUESTS AWAITING APPROVAL */}
+
+              <div className="stat-card">
+
+                <div>
+
+                  <span>
+                    Pending Requests
+                  </span>
+
+                  <h2>
+                    {pending}
+                  </h2>
+
+                </div>
+
+                <div className="stat-icon orange">
+                  ⏳
+                </div>
+
+              </div>
+
+
               {/* CHECKED OUT */}
 
               <div className="stat-card">
@@ -698,12 +809,9 @@ function App() {
                             <td>
 
                               <span
-                                className={
-                                  visitor.status ===
-                                  "Checked In"
-                                    ? "status checked-in"
-                                    : "status checked-out"
-                                }
+                                className={statusClass(
+                                  visitor.status
+                                )}
                               >
                                 {visitor.status}
                               </span>
@@ -771,7 +879,9 @@ function App() {
             </header>
 
 
-            {/* VISITOR SECTION */}
+            {/* ADMIN ONLY TABLE */}
+
+            {isAdmin && (
 
             <section className="visitor-section">
 
@@ -780,13 +890,11 @@ function App() {
                 <div>
 
                     <h2>
-                      {isAdmin ? "All Visitors" : "My Visit History"}
+                      All Visitors
                     </h2>
 
                     <p>
-                      {isAdmin
-                        ? "View and manage all visitor entries."
-                        : "Only your own visits are shown."}
+                      View and manage all visitor entries.
                     </p>
 
                 </div>
@@ -945,12 +1053,9 @@ function App() {
                             <td>
 
                               <span
-                                className={
-                                  visitor.status ===
-                                  "Checked In"
-                                    ? "status checked-in"
-                                    : "status checked-out"
-                                }
+                                className={statusClass(
+                                  visitor.status
+                                )}
                               >
                                 {visitor.status}
                               </span>
@@ -982,6 +1087,27 @@ function App() {
                                 )}
 
 
+                                {/* APPROVE - PENDING ONLY */}
+
+                                {canManageVisitors &&
+                                  visitor.status ===
+                                    "Pending" && (
+
+                                    <button
+                                      className="checkout-btn"
+                                      onClick={() =>
+                                        updateStatus(
+                                          visitor,
+                                          "Checked In"
+                                        )
+                                      }
+                                    >
+                                      Approve
+                                    </button>
+
+                                  )}
+
+
                                 {/* CHECK OUT */}
 
                                 {canManageVisitors &&
@@ -991,8 +1117,9 @@ function App() {
                                     <button
                                       className="checkout-btn"
                                       onClick={() =>
-                                        handleCheckOut(
-                                          visitor
+                                        updateStatus(
+                                          visitor,
+                                          "Checked Out"
                                         )
                                       }
                                     >
@@ -1054,7 +1181,352 @@ function App() {
 
             </section>
 
+            )}
+
+
+            {/* ========================================
+                MY VISITS - VISITOR ROLE ONLY
+            ======================================== */}
+
+            {!isAdmin && (
+
+            <section className="visitor-section">
+
+              <div className="section-header">
+
+                <div>
+
+                  <h2>
+                    My Visit History
+                  </h2>
+
+                  <p>
+                    Your visit requests and their current status.
+                  </p>
+
+                </div>
+
+                <button
+                  className="add-btn"
+                  onClick={() => setShowRequest(true)}
+                >
+                  + Request a Visit
+                </button>
+
+              </div>
+
+              <div className="table-wrapper">
+
+                <table>
+
+                  <thead>
+
+                    <tr>
+
+                      <th>
+                        Person to Meet
+                      </th>
+
+                      <th>
+                        Organization
+                      </th>
+
+                      <th>
+                        Purpose
+                      </th>
+
+                      <th>
+                        Date & Time
+                      </th>
+
+                      <th>
+                        Status
+                      </th>
+
+                      <th>
+                        Actions
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {visibleVisitors.length === 0 ? (
+
+                      <tr>
+
+                        <td
+                          colSpan="6"
+                          className="empty"
+                        >
+
+                          You have no visit requests yet.
+
+                          <br />
+
+                          <span>
+                            Use &quot;Request a Visit&quot; to schedule one.
+
+                          </span>
+
+                        </td>
+
+                      </tr>
+
+                    ) : (
+
+                      visibleVisitors.map(
+                        (visitor) => (
+
+                          <tr
+                            key={visitor._id}
+                          >
+
+                            <td>
+                              <strong>
+                                {visitor.personToMeet}
+                              </strong>
+                            </td>
+
+                            <td>
+                              {visitor.organization}
+                            </td>
+
+                            <td>
+                              {visitor.purpose}
+                            </td>
+
+                            <td>
+                              {new Date(
+                                visitor.visitDateTime
+                              ).toLocaleString()}
+                            </td>
+
+                            <td>
+
+                              <span
+                                className={statusClass(
+                                  visitor.status
+                                )}
+                              >
+                                {visitor.status}
+                              </span>
+
+                            </td>
+
+                            <td>
+
+                              <div className="actions">
+
+                                {visitor.status ===
+                                  "Pending" ? (
+
+                                  <button
+                                    className="edit-btn"
+                                    onClick={() =>
+                                      handleEditRequest(
+                                        visitor
+                                      )
+                                    }
+                                  >
+                                    Edit
+                                  </button>
+
+                                ) : (
+
+                                  <span
+                                    style={{
+                                      color: "#64748b",
+                                      fontSize: "13px"
+                                    }}
+                                  >
+                                    Locked
+                                  </span>
+
+                                )}
+
+                              </div>
+
+                            </td>
+
+                          </tr>
+
+                        )
+                      )
+
+                    )}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </section>
+
+            )}
+
           </>
+
+        )}
+
+
+        {/* ========================================
+            VISITOR REQUEST MODAL
+        ======================================== */}
+
+        {showRequest && !isAdmin && (
+
+          <div className="modal-overlay">
+
+            <div className="modal">
+
+              <div className="modal-header">
+
+                <div>
+
+                  <h2>
+                    {editingRequest
+                      ? "Edit Visit Request"
+                      : "Request a Visit"}
+                  </h2>
+
+                  <p>
+                    {editingRequest
+                      ? "Update the details of your request."
+                      : "Tell us who you are meeting and why."}
+                  </p>
+
+                </div>
+
+                <button
+                  className="close-btn"
+                  onClick={() => {
+                    setEditingRequest(null);
+                    setShowRequest(false);
+                  }}
+                >
+                  ×
+                </button>
+
+              </div>
+
+              <form onSubmit={handleRequestSubmit}>
+
+                <div className="form-grid">
+
+                  <div className="form-group">
+
+                    <label>
+                      Your Name
+                    </label>
+
+                    <input
+                      type="text"
+                      value={user.name}
+                      disabled
+                    />
+
+                  </div>
+
+                  <div className="form-group">
+
+                    <label>
+                      Organization / College
+                    </label>
+
+                    <input
+                      type="text"
+                      name="organization"
+                      placeholder="Enter organization"
+                      value={requestData.organization}
+                      onChange={(e) =>
+                        setRequestData({
+                          ...requestData,
+                          organization: e.target.value
+                        })
+                      }
+                    />
+
+                  </div>
+
+                  <div className="form-group">
+
+                    <label>
+                      Person to Meet
+                    </label>
+
+                    <input
+                      type="text"
+                      name="personToMeet"
+                      placeholder="Enter employee name"
+                      value={requestData.personToMeet}
+                      onChange={(e) =>
+                        setRequestData({
+                          ...requestData,
+                          personToMeet: e.target.value
+                        })
+                      }
+                      required
+                    />
+
+                  </div>
+
+                  <div className="form-group">
+
+                    <label>
+                      Purpose of Visit
+                    </label>
+
+                    <input
+                      type="text"
+                      name="purpose"
+                      placeholder="Enter purpose"
+                      value={requestData.purpose}
+                      onChange={(e) =>
+                        setRequestData({
+                          ...requestData,
+                          purpose: e.target.value
+                        })
+                      }
+                      required
+                    />
+
+                  </div>
+
+                </div>
+
+                <div className="modal-actions">
+
+                  <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => {
+                      setEditingRequest(null);
+                      setShowRequest(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="save-btn"
+                  >
+                    {editingRequest
+                      ? "Update Request"
+                      : "Send Request"}
+                  </button>
+
+                </div>
+
+              </form>
+
+            </div>
+
+          </div>
 
         )}
 

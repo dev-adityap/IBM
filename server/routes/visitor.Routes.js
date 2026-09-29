@@ -9,17 +9,88 @@ const {
 const router = express.Router();
 
 
+// ============================================ 
+// ESCAPE USER INPUT FOR SAFE REGEX
+// ============================================ 
+const escapeRegex = (text = "") =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+
+// ============================================ 
+// CHECK IF RECORD BELONGS TO VISITOR
+// ============================================ 
+const isOwner = (visitor, user) => {
+  if (String(visitor.user) === String(user.id)) {
+    return true;
+  }
+
+  if (
+    visitor.visitorName?.toLowerCase() ===
+    user.name?.toLowerCase()
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    visitor.email &&
+      user.email &&
+      visitor.email.toLowerCase() ===
+        user.email.toLowerCase()
+  );
+};
+
+
 // ============================================
 // CREATE VISITOR
-// Admin + Receptionist
+// Admin / Receptionist create directly as "Checked In"
+// Visitor creates a request as "Pending" for admin approval
 // ============================================
 router.post(
   "/",
   authenticate,
-  authorize("admin", "receptionist"),
+  authorize("admin", "receptionist", "visitor"),
   async (req, res) => {
     try {
-      const visitor = await Visitor.create(req.body);
+      const {
+        personToMeet,
+        organization,
+        purpose,
+        visitDateTime
+      } = req.body;
+
+      if (!personToMeet || !purpose) {
+        return res.status(400).json({
+          message:
+            "Person to meet and purpose are required"
+        });
+      }
+
+      const isVisitor = req.user.role === "visitor";
+
+      // Visitors always request; admins create checked in
+      const visitor = await Visitor.create({
+        visitorName: isVisitor
+          ? req.user.name
+          : req.body.visitorName,
+        mobileNumber: isVisitor
+          ? req.body.mobileNumber
+          : req.body.mobileNumber,
+        email: isVisitor
+          ? req.user.email
+          : req.body.email,
+        organization:
+          req.body.organization || "Self",
+        personToMeet,
+        purpose,
+        visitDateTime:
+          visitDateTime || Date.now(),
+        user: isVisitor
+          ? req.user.id
+          : req.body.user || null,
+        status: isVisitor
+          ? "Pending"
+          : "Checked In"
+      });
 
       res.status(201).json(visitor);
     } catch (error) {
@@ -46,15 +117,17 @@ router.get(
         req.user.role === "visitor"
           ? {
               $or: [
+                { user: req.user.id },
+                // Legacy records created before user linking
                 {
                   visitorName: {
-                    $regex: `^${req.user.name}$`,
+                    $regex: `^${escapeRegex(req.user.name)}$`,
                     $options: "i"
                   }
                 },
                 {
                   email: {
-                    $regex: `^${req.user.email}$`,
+                    $regex: `^${escapeRegex(req.user.email)}$`,
                     $options: "i"
                   }
                 }
@@ -95,21 +168,13 @@ router.get(
         });
       }
 
-      if (req.user.role === "visitor") {
-        const nameMatch =
-          visitor.visitorName?.toLowerCase() ===
-          req.user.name?.toLowerCase();
-
-        const emailMatch =
-          visitor.email &&
-          visitor.email.toLowerCase() ===
-            req.user.email.toLowerCase();
-
-        if (!nameMatch && !emailMatch) {
-          return res.status(403).json({
-            message: "Access denied"
-          });
-        }
+      if (
+        req.user.role === "visitor" &&
+        !isOwner(visitor, req.user)
+      ) {
+        return res.status(403).json({
+          message: "Access denied"
+        });
       }
 
       res.status(200).json(visitor);
@@ -122,19 +187,88 @@ router.get(
 );
 
 
-// ============================================
+// ============================================ 
 // UPDATE VISITOR
-// Admin + Receptionist
-// ============================================
+// Admin / Receptionist: approve, check in, check out, edit
+// Visitor: edit their own record, only while Pending
+// ============================================ 
 router.put(
   "/:id",
   authenticate,
-  authorize("admin", "receptionist"),
+  authorize(
+    "admin",
+    "receptionist",
+    "visitor"
+  ),
   async (req, res) => {
     try {
+      const update = { ...req.body };
+
+      const isVisitor = req.user.role === "visitor";
+
+      if (isVisitor) {
+        const existing = await Visitor.findById(
+          req.params.id
+        );
+
+        if (!existing) {
+          return res.status(404).json({
+            message: "Visitor not found"
+          });
+        }
+
+        if (!isOwner(existing, req.user)) {
+          return res.status(403).json({
+            message: "Access denied"
+          });
+        }
+
+        // Once approved, the visitor can no longer change it
+        if (existing.status !== "Pending") {
+          return res.status(403).json({
+            message:
+              "This visit can no longer be edited. Contact the front desk."
+          });
+        }
+
+        // Visitors may only correct these details
+        const allowedFields = [
+          "organization",
+          "personToMeet",
+          "purpose"
+        ];
+
+        for (const key of Object.keys(update)) {
+          if (!allowedFields.includes(key)) {
+            return res.status(403).json({
+              message: `Cannot update ${key}`
+            });
+          }
+        }
+      }
+
+      // Only these statuses are reachable
+      const allowedStatuses = [
+        "Pending",
+        "Checked In",
+        "Checked Out"
+      ];
+
+      if (
+        update.status &&
+        !allowedStatuses.includes(update.status)
+      ) {
+        return res.status(400).json({
+          message: "Invalid status"
+        });
+      }
+
+      // Identity fields belong to the visitor, not the admin
+      delete update.user;
+
       const visitor = await Visitor.findByIdAndUpdate(
         req.params.id,
-        req.body,
+        update,
         {
           new: true,
           runValidators: true

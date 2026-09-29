@@ -25,6 +25,12 @@ const visitorSchema = new mongoose.Schema(
       trim: true
     },
 
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
     personToMeet: {
       type: String,
       required: true,
@@ -44,7 +50,7 @@ const visitorSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Checked In", "Checked Out"],
+      enum: ["Pending", "Checked In", "Checked Out"],
       default: "Checked In"
     }
   },
