@@ -4,9 +4,6 @@ import Login from "./Login";
 import "./App.css";
 
 function App() {
-  // ============================================
-  // AUTHENTICATION
-  // ============================================
 
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
@@ -41,9 +38,7 @@ function App() {
   // ROLE CHECKS
   // ============================================
 
-  const canManageVisitors =
-    user?.role === "admin" ||
-    user?.role === "receptionist";
+  const canManageVisitors = user?.role === "admin";
 
   const isAdmin = user?.role === "admin";
 
@@ -53,7 +48,9 @@ function App() {
 
   const handleLogin = (loggedInUser) => {
     setUser(loggedInUser);
-    setActivePage("dashboard");
+    setActivePage(
+      loggedInUser?.role === "admin" ? "dashboard" : "visitors"
+    );
   };
 
   // ============================================
@@ -94,6 +91,16 @@ function App() {
       fetchVisitors();
     }
   }, [user]);
+
+  // ============================================
+  // KEEP VISITORS OUT OF ADMIN PAGES
+  // ============================================
+
+  useEffect(() => {
+    if (user && user.role !== "admin" && activePage === "dashboard") {
+      setActivePage("visitors");
+    }
+  }, [user, activePage]);
 
   // ============================================
   // HANDLE INPUT
@@ -267,10 +274,27 @@ function App() {
   };
 
   // ============================================
+  // ROLE-BASED VISIBLE RECORDS
+  // ============================================
+
+  // Admins see every record, visitors only their own
+  const visibleVisitors = isAdmin
+    ? visitors
+    : visitors.filter(
+        (visitor) =>
+          visitor.visitorName?.toLowerCase() ===
+            user?.name?.toLowerCase() ||
+          (visitor.email &&
+            user?.email &&
+            visitor.email.toLowerCase() ===
+              user.email.toLowerCase())
+      );
+
+  // ============================================
   // SEARCH
   // ============================================
 
-  const filteredVisitors = visitors.filter(
+  const filteredVisitors = visibleVisitors.filter(
     (visitor) =>
       visitor.visitorName
         .toLowerCase()
@@ -342,18 +366,20 @@ function App() {
 
         <nav>
 
-          <a
-            className={
-              activePage === "dashboard"
-                ? "active"
-                : ""
-            }
-            onClick={() =>
-              setActivePage("dashboard")
-            }
-          >
-            Dashboard
-          </a>
+          {isAdmin && (
+            <a
+              className={
+                activePage === "dashboard"
+                  ? "active"
+                  : ""
+              }
+              onClick={() =>
+                setActivePage("dashboard")
+              }
+            >
+              Dashboard
+            </a>
+          )}
 
           <a
             className={
@@ -718,11 +744,13 @@ function App() {
               <div>
 
                 <h1>
-                  Visitors
+                  {isAdmin ? "Visitors" : "My Visits"}
                 </h1>
 
                 <p>
-                  Manage all visitor records.
+                  {isAdmin
+                    ? "Manage all visitor records."
+                    : "View the visits recorded for your account."}
                 </p>
 
               </div>
@@ -751,13 +779,15 @@ function App() {
 
                 <div>
 
-                  <h2>
-                    All Visitors
-                  </h2>
+                    <h2>
+                      {isAdmin ? "All Visitors" : "My Visit History"}
+                    </h2>
 
-                  <p>
-                    View and manage all visitor entries.
-                  </p>
+                    <p>
+                      {isAdmin
+                        ? "View and manage all visitor entries."
+                        : "Only your own visits are shown."}
+                    </p>
 
                 </div>
 

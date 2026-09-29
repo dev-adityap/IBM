@@ -33,15 +33,36 @@ router.post(
 
 // ============================================
 // GET ALL VISITORS
-// Admin + Receptionist + Viewer
+// Admin / Receptionist / Viewer see all
+// Visitor sees only their own records
 // ============================================
 router.get(
   "/",
   authenticate,
-  authorize("admin", "receptionist", "viewer"),
+  authorize("admin", "receptionist", "viewer", "visitor"),
   async (req, res) => {
     try {
-      const visitors = await Visitor.find().sort({
+      const query =
+        req.user.role === "visitor"
+          ? {
+              $or: [
+                {
+                  visitorName: {
+                    $regex: `^${req.user.name}$`,
+                    $options: "i"
+                  }
+                },
+                {
+                  email: {
+                    $regex: `^${req.user.email}$`,
+                    $options: "i"
+                  }
+                }
+              ]
+            }
+          : {};
+
+      const visitors = await Visitor.find(query).sort({
         visitDateTime: -1
       });
 
@@ -57,12 +78,13 @@ router.get(
 
 // ============================================
 // GET SINGLE VISITOR
-// Admin + Receptionist + Viewer
+// Admin / Receptionist / Viewer see all
+// Visitor sees only their own record
 // ============================================
 router.get(
   "/:id",
   authenticate,
-  authorize("admin", "receptionist", "viewer"),
+  authorize("admin", "receptionist", "viewer", "visitor"),
   async (req, res) => {
     try {
       const visitor = await Visitor.findById(req.params.id);
@@ -71,6 +93,23 @@ router.get(
         return res.status(404).json({
           message: "Visitor not found"
         });
+      }
+
+      if (req.user.role === "visitor") {
+        const nameMatch =
+          visitor.visitorName?.toLowerCase() ===
+          req.user.name?.toLowerCase();
+
+        const emailMatch =
+          visitor.email &&
+          visitor.email.toLowerCase() ===
+            req.user.email.toLowerCase();
+
+        if (!nameMatch && !emailMatch) {
+          return res.status(403).json({
+            message: "Access denied"
+          });
+        }
       }
 
       res.status(200).json(visitor);

@@ -8,15 +8,33 @@ const router = express.Router();
 
 
 // ============================================
-// REGISTER USER
+// REGISTER USER (VISITOR OR ADMIN)
 // ============================================
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, phone, password, role } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !phone || !password) {
       return res.status(400).json({
-        message: "Name, email and password are required"
+        message: "Name, email, phone and password are required"
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters"
+      });
+    }
+
+    const accountRole = role === "admin" ? "admin" : "visitor";
+
+    const existingName = await User.findOne({
+      name: name.trim()
+    });
+
+    if (existingName) {
+      return res.status(400).json({
+        message: "Name already exists"
       });
     }
 
@@ -33,18 +51,20 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
-      name,
+      name: name.trim(),
       email: email.toLowerCase(),
+      phone: phone.trim(),
       password: hashedPassword,
-      role: role || "receptionist"
+      role: accountRole
     });
 
     res.status(201).json({
-      message: "User registered successfully",
+      message: "Registered successfully",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });
@@ -60,25 +80,25 @@ router.post("/register", async (req, res) => {
 
 
 // ============================================
-// LOGIN
+// LOGIN (NAME + PASSWORD)
 // ============================================
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { name, password } = req.body;
 
-    if (!email || !password) {
+    if (!name || !password) {
       return res.status(400).json({
-        message: "Email and password are required"
+        message: "Name and password are required"
       });
     }
 
     const user = await User.findOne({
-      email: email.toLowerCase()
+      name: name.trim()
     });
 
     if (!user) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "No account found with that name"
       });
     }
 
@@ -89,7 +109,7 @@ router.post("/login", async (req, res) => {
 
     if (!passwordMatch) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "Invalid name or password"
       });
     }
 
@@ -113,6 +133,7 @@ router.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role
       }
     });

@@ -113,3 +113,101 @@
   color: #94a3b8;
   font-size: 12px;
 }
+
+.login-success {
+  margin-bottom: 16px;
+  padding: 11px;
+
+  border-radius: 8px;
+
+  background: #dcfce7;
+  color: #15803d;
+
+  font-size: 14px;
+}
+
+.auth-prompt {
+  text-align: center;
+  color: #475569;
+  font-size: 14px;
+  margin: 0 0 18px;
+}
+
+.role-btn {
+  width: 100%;
+  padding: 16px;
+
+  margin-bottom: 12px;
+
+  border: 1px solid #dbe1ea;
+  border-radius: 12px;
+
+  background: white;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.role-btn:hover {
+  border-color: #2563eb;
+  background: #f8fafc;
+}
+
+.role-btn-alt {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.role-btn-alt:hover {
+  background: #1d4ed8;
+}
+
+.role-btn-title {
+  display: block;
+
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.role-btn-alt .role-btn-title {
+  color: white;
+}
+
+.role-btn-text {
+  display: block;
+
+  margin-top: 4px;
+
+  font-size: 13px;
+  color: #64748b;
+}
+
+.role-btn-alt .role-btn-text {
+  color: #dbeafe;
+}
+
+.auth-switch {
+  margin-top: 20px;
+  text-align: center;
+
+  font-size: 14px;
+  color: #64748b;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
