@@ -1,12 +1,27 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "./api";
+import Login from "./Login";
 import "./App.css";
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api/visitors";
-
 function App() {
+  // ============================================
+  // AUTHENTICATION
+  // ============================================
+
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("user");
+
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // ============================================
+  // VISITOR STATE
+  // ============================================
+
   const [visitors, setVisitors] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
@@ -22,26 +37,67 @@ function App() {
     purpose: ""
   });
 
-  // =========================
+  // ============================================
+  // ROLE CHECKS
+  // ============================================
+
+  const canManageVisitors =
+    user?.role === "admin" ||
+    user?.role === "receptionist";
+
+  const isAdmin = user?.role === "admin";
+
+  // ============================================
+  // LOGIN
+  // ============================================
+
+  const handleLogin = (loggedInUser) => {
+    setUser(loggedInUser);
+    setActivePage("dashboard");
+  };
+
+  // ============================================
+  // LOGOUT
+  // ============================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    setUser(null);
+    setVisitors([]);
+  };
+
+  // ============================================
   // FETCH VISITORS
-  // =========================
+  // ============================================
 
   const fetchVisitors = async () => {
     try {
-      const response = await axios.get(API_URL);
+      const response = await api.get("/");
       setVisitors(response.data);
     } catch (error) {
       console.error("Error fetching visitors:", error);
+
+      if (error.response?.status === 401) {
+        handleLogout();
+      }
     }
   };
 
-  useEffect(() => {
-    fetchVisitors();
-  }, []);
+  // ============================================
+  // FETCH WHEN LOGGED IN
+  // ============================================
 
-  // =========================
+  useEffect(() => {
+    if (user) {
+      fetchVisitors();
+    }
+  }, [user]);
+
+  // ============================================
   // HANDLE INPUT
-  // =========================
+  // ============================================
 
   const handleChange = (e) => {
     setFormData({
@@ -50,9 +106,9 @@ function App() {
     });
   };
 
-  // =========================
+  // ============================================
   // RESET FORM
-  // =========================
+  // ============================================
 
   const resetForm = () => {
     setFormData({
@@ -67,15 +123,15 @@ function App() {
     setEditingVisitor(null);
   };
 
-  // =========================
+  // ============================================
   // ADD VISITOR
-  // =========================
+  // ============================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      await axios.post(API_URL, formData);
+      await api.post("/", formData);
 
       alert("Visitor added successfully!");
 
@@ -85,15 +141,25 @@ function App() {
       fetchVisitors();
     } catch (error) {
       console.error("Error adding visitor:", error);
-      alert("Failed to add visitor");
+
+      if (error.response?.status === 403) {
+        alert("You do not have permission to add visitors.");
+      } else {
+        alert("Failed to add visitor");
+      }
     }
   };
 
-  // =========================
+  // ============================================
   // EDIT VISITOR
-  // =========================
+  // ============================================
 
   const handleEdit = (visitor) => {
+    if (!canManageVisitors) {
+      alert("You do not have permission to edit visitors.");
+      return;
+    }
+
     setEditingVisitor(visitor);
 
     setFormData({
@@ -108,16 +174,16 @@ function App() {
     setShowForm(true);
   };
 
-  // =========================
+  // ============================================
   // UPDATE VISITOR
-  // =========================
+  // ============================================
 
   const handleUpdate = async (e) => {
     e.preventDefault();
 
     try {
-      await axios.put(
-        `${API_URL}/${editingVisitor._id}`,
+      await api.put(
+        `/${editingVisitor._id}`,
         formData
       );
 
@@ -129,32 +195,52 @@ function App() {
       fetchVisitors();
     } catch (error) {
       console.error("Error updating visitor:", error);
-      alert("Failed to update visitor");
+
+      if (error.response?.status === 403) {
+        alert("You do not have permission to update visitors.");
+      } else {
+        alert("Failed to update visitor");
+      }
     }
   };
 
-  // =========================
+  // ============================================
   // CHECK OUT VISITOR
-  // =========================
+  // ============================================
 
   const handleCheckOut = async (visitor) => {
+    if (!canManageVisitors) {
+      alert("You do not have permission to check out visitors.");
+      return;
+    }
+
     try {
-      await axios.put(`${API_URL}/${visitor._id}`, {
+      await api.put(`/${visitor._id}`, {
         status: "Checked Out"
       });
 
       fetchVisitors();
     } catch (error) {
       console.error("Error checking out visitor:", error);
-      alert("Failed to check out visitor");
+
+      if (error.response?.status === 403) {
+        alert("You do not have permission to check out visitors.");
+      } else {
+        alert("Failed to check out visitor");
+      }
     }
   };
 
-  // =========================
+  // ============================================
   // DELETE VISITOR
-  // =========================
+  // ============================================
 
   const deleteVisitor = async (id) => {
+    if (!isAdmin) {
+      alert("Only administrators can delete visitors.");
+      return;
+    }
+
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this visitor?"
     );
@@ -164,18 +250,25 @@ function App() {
     }
 
     try {
-      await axios.delete(`${API_URL}/${id}`);
+      await api.delete(`/${id}`);
+
+      alert("Visitor deleted successfully!");
 
       fetchVisitors();
     } catch (error) {
       console.error("Error deleting visitor:", error);
-      alert("Failed to delete visitor");
+
+      if (error.response?.status === 403) {
+        alert("Only administrators can delete visitors.");
+      } else {
+        alert("Failed to delete visitor");
+      }
     }
   };
 
-  // =========================
+  // ============================================
   // SEARCH
-  // =========================
+  // ============================================
 
   const filteredVisitors = visitors.filter(
     (visitor) =>
@@ -185,9 +278,9 @@ function App() {
       visitor.mobileNumber.includes(search)
   );
 
-  // =========================
+  // ============================================
   // STATISTICS
-  // =========================
+  // ============================================
 
   const checkedIn = visitors.filter(
     (visitor) => visitor.status === "Checked In"
@@ -197,18 +290,42 @@ function App() {
     (visitor) => visitor.status === "Checked Out"
   ).length;
 
-  // =========================
+  // ============================================
+  // LOGIN SCREEN
+  // ============================================
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // ============================================
+  // OPEN ADD VISITOR FORM
+  // ============================================
+
+  const openAddForm = () => {
+    if (!canManageVisitors) {
+      alert("You do not have permission to add visitors.");
+      return;
+    }
+
+    resetForm();
+    setShowForm(true);
+  };
+
+  // ============================================
   // UI
-  // =========================
+  // ============================================
 
   return (
     <div className="app">
 
-      {/* =====================================
+      {/* ==========================================
           SIDEBAR
-      ===================================== */}
+      ========================================== */}
 
       <aside className="sidebar">
+
+        {/* LOGO */}
 
         <div className="logo">
 
@@ -223,6 +340,7 @@ function App() {
 
         </div>
 
+        {/* NAVIGATION */}
 
         <nav>
 
@@ -232,11 +350,12 @@ function App() {
                 ? "active"
                 : ""
             }
-            onClick={() => setActivePage("dashboard")}
+            onClick={() =>
+              setActivePage("dashboard")
+            }
           >
             Dashboard
           </a>
-
 
           <a
             className={
@@ -244,13 +363,45 @@ function App() {
                 ? "active"
                 : ""
             }
-            onClick={() => setActivePage("visitors")}
+            onClick={() =>
+              setActivePage("visitors")
+            }
           >
             Visitors
           </a>
 
         </nav>
 
+        {/* USER INFO */}
+
+        <div className="sidebar-user">
+
+          <div className="user-avatar">
+            {user.name?.charAt(0).toUpperCase()}
+          </div>
+
+          <div className="user-details">
+
+            <strong>
+              {user.name}
+            </strong>
+
+            <span>
+              {user.role}
+            </span>
+
+          </div>
+
+          <button
+            className="logout-btn"
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
+
+        </div>
+
+        {/* SIDEBAR BOTTOM */}
 
         <div className="sidebar-bottom">
 
@@ -267,22 +418,22 @@ function App() {
       </aside>
 
 
-      {/* =====================================
+      {/* ==========================================
           MAIN CONTENT
-      ===================================== */}
+      ========================================== */}
 
       <main className="main-content">
 
 
-        {/* =====================================
+        {/* ========================================
             DASHBOARD PAGE
-        ===================================== */}
+        ======================================== */}
 
         {activePage === "dashboard" && (
 
           <>
 
-            {/* Header */}
+            {/* HEADER */}
 
             <header className="topbar">
 
@@ -298,26 +449,27 @@ function App() {
 
               </div>
 
+              {/* ADMIN + RECEPTIONIST ONLY */}
 
-              <button
-                className="add-btn"
-                onClick={() => {
-                  resetForm();
-                  setShowForm(true);
-                }}
-              >
-                + Add Visitor
-              </button>
+              {canManageVisitors && (
+
+                <button
+                  className="add-btn"
+                  onClick={openAddForm}
+                >
+                  + Add Visitor
+                </button>
+
+              )}
 
             </header>
 
 
-            {/* Statistics */}
+            {/* STATISTICS */}
 
             <section className="stats">
 
-
-              {/* Total Visitors */}
+              {/* TOTAL */}
 
               <div className="stat-card">
 
@@ -340,7 +492,7 @@ function App() {
               </div>
 
 
-              {/* Checked In */}
+              {/* CHECKED IN */}
 
               <div className="stat-card">
 
@@ -363,7 +515,7 @@ function App() {
               </div>
 
 
-              {/* Checked Out */}
+              {/* CHECKED OUT */}
 
               <div className="stat-card">
 
@@ -388,7 +540,7 @@ function App() {
             </section>
 
 
-            {/* Recent Visitors */}
+            {/* RECENT VISITORS */}
 
             <section className="visitor-section">
 
@@ -405,7 +557,6 @@ function App() {
                   </p>
 
                 </div>
-
 
                 <button
                   className="view-all-btn"
@@ -466,7 +617,6 @@ function App() {
                           colSpan="6"
                           className="empty"
                         >
-
                           No visitor records found.
 
                           <br />
@@ -485,7 +635,9 @@ function App() {
                         .slice(0, 5)
                         .map((visitor) => (
 
-                          <tr key={visitor._id}>
+                          <tr
+                            key={visitor._id}
+                          >
 
                             <td>
 
@@ -501,43 +653,35 @@ function App() {
 
                             </td>
 
-
                             <td>
                               {visitor.mobileNumber}
                             </td>
-
 
                             <td>
                               {visitor.organization}
                             </td>
 
-
                             <td>
                               {visitor.personToMeet}
                             </td>
 
-
                             <td>
-
                               {new Date(
                                 visitor.visitDateTime
                               ).toLocaleString()}
-
                             </td>
-
 
                             <td>
 
                               <span
                                 className={
-                                  visitor.status === "Checked In"
+                                  visitor.status ===
+                                  "Checked In"
                                     ? "status checked-in"
                                     : "status checked-out"
                                 }
                               >
-
                                 {visitor.status}
-
                               </span>
 
                             </td>
@@ -561,15 +705,15 @@ function App() {
         )}
 
 
-        {/* =====================================
+        {/* ========================================
             VISITORS PAGE
-        ===================================== */}
+        ======================================== */}
 
         {activePage === "visitors" && (
 
           <>
 
-            {/* Header */}
+            {/* HEADER */}
 
             <header className="topbar">
 
@@ -585,24 +729,25 @@ function App() {
 
               </div>
 
+              {/* ADMIN + RECEPTIONIST */}
 
-              <button
-                className="add-btn"
-                onClick={() => {
-                  resetForm();
-                  setShowForm(true);
-                }}
-              >
-                + Add Visitor
-              </button>
+              {canManageVisitors && (
+
+                <button
+                  className="add-btn"
+                  onClick={openAddForm}
+                >
+                  + Add Visitor
+                </button>
+
+              )}
 
             </header>
 
 
-            {/* Visitors Section */}
+            {/* VISITOR SECTION */}
 
             <section className="visitor-section">
-
 
               <div className="section-header">
 
@@ -619,7 +764,7 @@ function App() {
                 </div>
 
 
-                {/* Search */}
+                {/* SEARCH */}
 
                 <input
                   type="text"
@@ -634,7 +779,7 @@ function App() {
               </div>
 
 
-              {/* Table */}
+              {/* TABLE */}
 
               <div className="table-wrapper">
 
@@ -713,7 +858,7 @@ function App() {
                             key={visitor._id}
                           >
 
-                            {/* Visitor */}
+                            {/* VISITOR */}
 
                             <td>
 
@@ -730,46 +875,44 @@ function App() {
                             </td>
 
 
-                            {/* Mobile */}
+                            {/* MOBILE */}
 
                             <td>
                               {visitor.mobileNumber}
                             </td>
 
 
-                            {/* Organization */}
+                            {/* ORGANIZATION */}
 
                             <td>
                               {visitor.organization}
                             </td>
 
 
-                            {/* Person */}
+                            {/* PERSON */}
 
                             <td>
                               {visitor.personToMeet}
                             </td>
 
 
-                            {/* Purpose */}
+                            {/* PURPOSE */}
 
                             <td>
                               {visitor.purpose}
                             </td>
 
 
-                            {/* Date */}
+                            {/* DATE */}
 
                             <td>
-
                               {new Date(
                                 visitor.visitDateTime
                               ).toLocaleString()}
-
                             </td>
 
 
-                            {/* Status */}
+                            {/* STATUS */}
 
                             <td>
 
@@ -781,64 +924,88 @@ function App() {
                                     : "status checked-out"
                                 }
                               >
-
                                 {visitor.status}
-
                               </span>
 
                             </td>
 
 
-                            {/* Actions */}
+                            {/* ACTIONS */}
 
                             <td>
 
                               <div className="actions">
 
+                                {/* EDIT */}
 
-                                {/* Edit */}
-
-                                <button
-                                  className="edit-btn"
-                                  onClick={() =>
-                                    handleEdit(visitor)
-                                  }
-                                >
-                                  Edit
-                                </button>
-
-
-                                {/* Check Out */}
-
-                                {visitor.status ===
-                                  "Checked In" && (
+                                {canManageVisitors && (
 
                                   <button
-                                    className="checkout-btn"
+                                    className="edit-btn"
                                     onClick={() =>
-                                      handleCheckOut(
+                                      handleEdit(
                                         visitor
                                       )
                                     }
                                   >
-                                    Check Out
+                                    Edit
                                   </button>
 
                                 )}
 
 
-                                {/* Delete */}
+                                {/* CHECK OUT */}
 
-                                <button
-                                  className="delete-btn"
-                                  onClick={() =>
-                                    deleteVisitor(
-                                      visitor._id
-                                    )
-                                  }
-                                >
-                                  Delete
-                                </button>
+                                {canManageVisitors &&
+                                  visitor.status ===
+                                    "Checked In" && (
+
+                                    <button
+                                      className="checkout-btn"
+                                      onClick={() =>
+                                        handleCheckOut(
+                                          visitor
+                                        )
+                                      }
+                                    >
+                                      Check Out
+                                    </button>
+
+                                  )}
+
+
+                                {/* DELETE - ADMIN ONLY */}
+
+                                {isAdmin && (
+
+                                  <button
+                                    className="delete-btn"
+                                    onClick={() =>
+                                      deleteVisitor(
+                                        visitor._id
+                                      )
+                                    }
+                                  >
+                                    Delete
+                                  </button>
+
+                                )}
+
+                                {/* VIEWER MESSAGE */}
+
+                                {!canManageVisitors &&
+                                  !isAdmin && (
+
+                                  <span
+                                    style={{
+                                      color: "#64748b",
+                                      fontSize: "13px"
+                                    }}
+                                  >
+                                    View Only
+                                  </span>
+
+                                )}
 
                               </div>
 
@@ -864,18 +1031,17 @@ function App() {
         )}
 
 
-        {/* =====================================
+        {/* ========================================
             ADD / EDIT MODAL
-        ===================================== */}
+        ======================================== */}
 
-        {showForm && (
+        {showForm && canManageVisitors && (
 
           <div className="modal-overlay">
 
             <div className="modal">
 
-
-              {/* Modal Header */}
+              {/* MODAL HEADER */}
 
               <div className="modal-header">
 
@@ -888,7 +1054,6 @@ function App() {
                       : "Add New Visitor"}
 
                   </h2>
-
 
                   <p>
 
@@ -914,7 +1079,7 @@ function App() {
               </div>
 
 
-              {/* Form */}
+              {/* FORM */}
 
               <form
                 onSubmit={
@@ -927,7 +1092,7 @@ function App() {
                 <div className="form-grid">
 
 
-                  {/* Visitor Name */}
+                  {/* VISITOR NAME */}
 
                   <div className="form-group">
 
@@ -949,7 +1114,7 @@ function App() {
                   </div>
 
 
-                  {/* Mobile Number */}
+                  {/* MOBILE */}
 
                   <div className="form-group">
 
@@ -971,7 +1136,7 @@ function App() {
                   </div>
 
 
-                  {/* Email */}
+                  {/* EMAIL */}
 
                   <div className="form-group">
 
@@ -992,7 +1157,7 @@ function App() {
                   </div>
 
 
-                  {/* Organization */}
+                  {/* ORGANIZATION */}
 
                   <div className="form-group">
 
@@ -1014,7 +1179,7 @@ function App() {
                   </div>
 
 
-                  {/* Person To Meet */}
+                  {/* PERSON */}
 
                   <div className="form-group">
 
@@ -1036,7 +1201,7 @@ function App() {
                   </div>
 
 
-                  {/* Purpose */}
+                  {/* PURPOSE */}
 
                   <div className="form-group">
 
@@ -1060,7 +1225,7 @@ function App() {
                 </div>
 
 
-                {/* Modal Actions */}
+                {/* MODAL ACTIONS */}
 
                 <div className="modal-actions">
 
@@ -1074,7 +1239,6 @@ function App() {
                   >
                     Cancel
                   </button>
-
 
                   <button
                     type="submit"
