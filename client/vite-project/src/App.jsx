@@ -329,9 +329,7 @@ function App() {
 
         <div className="logo">
 
-          <div className="logo-icon">
-            V
-          </div>
+          <img className="logo-icon" src="/favicon.ico" alt="VisitEase" />
 
           <div>
             <h2>VisitEase</h2>

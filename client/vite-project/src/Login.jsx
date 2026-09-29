@@ -61,9 +61,7 @@ function Login({ onLogin }) {
 
       <div className="login-card">
 
-        <div className="login-logo">
-          V
-        </div>
+        <img className="login-logo" src="/favicon.ico" alt="VisitEase" />
 
         <h1>VisitEase</h1>
 

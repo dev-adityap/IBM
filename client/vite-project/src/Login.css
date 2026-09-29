@@ -21,17 +21,11 @@
   height: 55px;
   margin: 0 auto 18px;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
 
-  background: #2563eb;
-  color: white;
+  object-fit: cover;
 
   border-radius: 14px;
-
-  font-size: 25px;
-  font-weight: 700;
 }
 
 .login-card h1 {
