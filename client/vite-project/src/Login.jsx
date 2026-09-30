@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { Bot, ShieldCheck, Sparkles } from "lucide-react";
 import "./Login.css";
 
 const API_URL =
@@ -9,6 +10,47 @@ const API_URL =
 const AUTH_URL = API_URL.replace(
   "/api/visitors",
   "/api/auth"
+);
+
+const Shell = ({ children }) => (
+  <div className="login-page">
+    <div className="auth-shell">
+      <aside className="auth-aside">
+        <div className="brand-mark">
+          <Sparkles size={18} />
+        </div>
+
+        <h1>
+          Visitor management,
+          <span> finally effortless.</span>
+        </h1>
+
+        <p>
+          Approve visits, track arrivals and keep every host notified
+          from one calm workspace.
+        </p>
+
+        <ul className="aside-list">
+          <li>
+            <Bot size={15} />
+            AI-assisted insights on every visit
+          </li>
+          <li>
+            <ShieldCheck size={15} />
+            Role-based access for staff and visitors
+          </li>
+          <li>
+            <Sparkles size={15} />
+            Live check-in and check-out status
+          </li>
+        </ul>
+
+        <span className="aside-foot">VisitEase · MERN stack</span>
+      </aside>
+
+      <section className="auth-card">{children}</section>
+    </div>
+  </div>
 );
 
 function Login({ onLogin }) {
@@ -47,13 +89,12 @@ function Login({ onLogin }) {
           email,
           phone,
           password,
-          role
+          role,
         }
       );
 
       setSuccess(
-        response.data.message +
-          ". You can now sign in."
+        response.data.message + ". You can now sign in."
       );
 
       setName("");
@@ -62,11 +103,10 @@ function Login({ onLogin }) {
       setPassword("");
 
       setView("login");
-
     } catch (error) {
       setError(
         error.response?.data?.message ||
-        "Registration failed. Please try again."
+          "Registration failed. Please try again."
       );
     } finally {
       setLoading(false);
@@ -88,7 +128,7 @@ function Login({ onLogin }) {
         `${AUTH_URL}/login`,
         {
           name,
-          password
+          password,
         }
       );
 
@@ -101,11 +141,10 @@ function Login({ onLogin }) {
       );
 
       onLogin(user);
-
     } catch (error) {
       setError(
         error.response?.data?.message ||
-        "Login failed. Please try again."
+          "Login failed. Please try again."
       );
     } finally {
       setLoading(false);
@@ -118,81 +157,57 @@ function Login({ onLogin }) {
 
   if (view === "landing") {
     return (
-      <div className="login-page">
+      <Shell>
+        <h2>Welcome to VisitEase</h2>
+        <p className="login-subtitle">
+          Choose how you want to continue
+        </p>
 
-        <div className="login-card">
+        <button
+          className="role-btn"
+          onClick={() => {
+            resetMessages();
+            setRole("visitor");
+            setView("register");
+          }}
+        >
+          <span className="role-btn-title">
+            Register as a Visitor
+          </span>
+          <span className="role-btn-text">
+            Create a visitor account
+          </span>
+        </button>
 
-          <img
-            className="login-logo"
-            src="/favicon.ico"
-            alt="VisitEase"
-          />
+        <button
+          className="role-btn role-btn-alt"
+          onClick={() => {
+            resetMessages();
+            setRole("admin");
+            setView("register");
+          }}
+        >
+          <span className="role-btn-title">
+            Sign up as an Admin
+          </span>
+          <span className="role-btn-text">
+            Full dashboard access
+          </span>
+        </button>
 
-          <h1>VisitEase</h1>
-
-          <p className="login-subtitle">
-            Visitor Management System
-          </p>
-
-          <p className="auth-prompt">
-            Choose how you want to continue
-          </p>
-
+        <div className="auth-switch">
+          Already registered?{" "}
           <button
-            className="role-btn"
+            className="link-btn"
             onClick={() => {
               resetMessages();
-              setRole("visitor");
-              setView("register");
+              setView("login");
             }}
           >
-            <span className="role-btn-title">
-              Register as a Visitor
-            </span>
-
-            <span className="role-btn-text">
-              Create a visitor account
-            </span>
+            Sign in
           </button>
-
-          <button
-            className="role-btn role-btn-alt"
-            onClick={() => {
-              resetMessages();
-              setRole("admin");
-              setView("register");
-            }}
-          >
-            <span className="role-btn-title">
-              Sign up as an Admin
-            </span>
-
-            <span className="role-btn-text">
-              Full dashboard access
-            </span>
-          </button>
-
-          <div className="auth-switch">
-            Already registered?{" "}
-
-            <button
-              className="link-btn"
-              onClick={() => {
-                resetMessages();
-                setView("login");
-              }}
-            >
-              Sign in
-            </button>
-          </div>
-
-          <div className="login-footer">
-            Secure role-based access
-          </div>
-
         </div>
-
-      </div>
+      </Shell>
     );
   }
 
@@ -202,144 +217,22 @@ function Login({ onLogin }) {
 
   if (view === "register") {
     return (
-      <div className="login-page">
-
-        <div className="login-card">
-
-          <img
-            className="login-logo"
-            src="/favicon.ico"
-            alt="VisitEase"
-          />
-
-          <h1>
-            {role === "admin"
-              ? "Admin Sign Up"
-              : "Visitor Register"}
-          </h1>
-
-          <p className="login-subtitle">
-            {role === "admin"
-              ? "Create an admin account"
-              : "Create your visitor account"}
-          </p>
-
-          <form onSubmit={handleRegister}>
-
-            <div className="login-group">
-              <label>Name</label>
-
-              <input
-                type="text"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="login-group">
-              <label>Email</label>
-
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="login-group">
-              <label>Phone Number</label>
-
-              <input
-                type="tel"
-                placeholder="Enter your phone number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="login-group">
-              <label>Password</label>
-
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            {error && (
-              <div className="login-error">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="login-btn"
-              disabled={loading}
-            >
-              {loading
-                ? "Creating account..."
-                : role === "admin"
-                ? "Create Admin Account"
-                : "Register"}
-            </button>
-
-          </form>
-
-          <div className="auth-switch">
-            Already have an account?{" "}
-
-            <button
-              className="link-btn"
-              onClick={() => {
-                resetMessages();
-                setView("login");
-              }}
-            >
-              Sign in
-            </button>
-          </div>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  // ============================================
-  // SIGN IN
-  // ============================================
-
-  return (
-    <div className="login-page">
-
-      <div className="login-card">
-
-        <img
-          className="login-logo"
-          src="/favicon.ico"
-          alt="VisitEase"
-        />
-
-        <h1>Sign In</h1>
+      <Shell>
+        <h2>
+          {role === "admin"
+            ? "Admin sign up"
+            : "Visitor register"}
+        </h2>
 
         <p className="login-subtitle">
-          Use the name and password you registered with
+          {role === "admin"
+            ? "Create an admin account"
+            : "Create your visitor account"}
         </p>
 
-        <form onSubmit={handleLogin}>
-
+        <form onSubmit={handleRegister}>
           <div className="login-group">
             <label>Name</label>
-
             <input
               type="text"
               placeholder="Enter your name"
@@ -350,8 +243,29 @@ function Login({ onLogin }) {
           </div>
 
           <div className="login-group">
-            <label>Password</label>
+            <label>Email</label>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
 
+          <div className="login-group">
+            <label>Phone Number</label>
+            <input
+              type="tel"
+              placeholder="Enter your phone number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="login-group">
+            <label>Password</label>
             <input
               type="password"
               placeholder="Enter your password"
@@ -361,49 +275,99 @@ function Login({ onLogin }) {
             />
           </div>
 
-          {error && (
-            <div className="login-error">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="login-success">
-              {success}
-            </div>
-          )}
+          {error && <div className="login-error">{error}</div>}
 
           <button
             type="submit"
             className="login-btn"
             disabled={loading}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading
+              ? "Creating account..."
+              : role === "admin"
+              ? "Create admin account"
+              : "Register"}
           </button>
-
         </form>
 
         <div className="auth-switch">
-          Don&apos;t have an account?{" "}
-
+          Already have an account?{" "}
           <button
             className="link-btn"
             onClick={() => {
               resetMessages();
-              setView("landing");
+              setView("login");
             }}
           >
-            Register
+            Sign in
           </button>
         </div>
+      </Shell>
+    );
+  }
 
-        <div className="login-footer">
-          Secure role-based access
+  // ============================================
+  // SIGN IN
+  // ============================================
+
+  return (
+    <Shell>
+      <h2>Sign in</h2>
+      <p className="login-subtitle">
+        Use the name and password you registered with
+      </p>
+
+      <form onSubmit={handleLogin}>
+        <div className="login-group">
+          <label>Name</label>
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
         </div>
 
-      </div>
+        <div className="login-group">
+          <label>Password</label>
+          <input
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
 
-    </div>
+        {error && <div className="login-error">{error}</div>}
+
+        {success && (
+          <div className="login-success">{success}</div>
+        )}
+
+        <button
+          type="submit"
+          className="login-btn"
+          disabled={loading}
+        >
+          {loading ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
+
+      <div className="auth-switch">
+        Don&apos;t have an account?{" "}
+        <button
+          className="link-btn"
+          onClick={() => {
+            resetMessages();
+            setView("landing");
+          }}
+        >
+          Register
+        </button>
+      </div>
+    </Shell>
   );
 }
 

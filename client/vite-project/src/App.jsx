@@ -1,10 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowUpRight,
+  Bot,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  LayoutDashboard,
+  LogOut,
+  Plus,
+  Search,
+  Sparkles,
+  TrendingUp,
+  UserCheck,
+  Users,
+  X,
+} from "lucide-react";
 import api from "./api";
 import Login from "./Login";
 import "./App.css";
 
 function App() {
-
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("user");
 
@@ -23,13 +38,14 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [editingVisitor, setEditingVisitor] = useState(null);
   const [showRequest, setShowRequest] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
   const [requestData, setRequestData] = useState({
     organization: "",
     personToMeet: "",
-    purpose: ""
+    purpose: "",
   });
 
   const [formData, setFormData] = useState({
@@ -38,7 +54,7 @@ function App() {
     email: "",
     organization: "",
     personToMeet: "",
-    purpose: ""
+    purpose: "",
   });
 
   // ============================================
@@ -76,7 +92,7 @@ function App() {
   // FETCH VISITORS
   // ============================================
 
-  const fetchVisitors = async () => {
+  const loadVisitors = async () => {
     try {
       const response = await api.get("/");
       setVisitors(response.data);
@@ -94,20 +110,40 @@ function App() {
   // ============================================
 
   useEffect(() => {
-    if (user) {
-      fetchVisitors();
+    if (!user) {
+      return;
     }
+
+    let active = true;
+
+    api
+      .get("/")
+      .then((response) => {
+        if (active) {
+          setVisitors(response.data);
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching visitors:", error);
+
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   // ============================================
   // KEEP VISITORS OUT OF ADMIN PAGES
   // ============================================
 
-  useEffect(() => {
-    if (user && user.role !== "admin" && activePage === "dashboard") {
-      setActivePage("visitors");
-    }
-  }, [user, activePage]);
+  const currentPage =
+    user && user.role !== "admin" && activePage === "dashboard"
+      ? "visitors"
+      : activePage;
 
   // ============================================
   // HANDLE INPUT
@@ -116,7 +152,7 @@ function App() {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -131,7 +167,7 @@ function App() {
       email: "",
       organization: "",
       personToMeet: "",
-      purpose: ""
+      purpose: "",
     });
 
     setEditingVisitor(null);
@@ -143,9 +179,7 @@ function App() {
 
   const handleEditRequest = (visitor) => {
     if (visitor.status !== "Pending") {
-      alert(
-        "This visit can no longer be edited."
-      );
+      alert("This visit can no longer be edited.");
       return;
     }
 
@@ -154,7 +188,7 @@ function App() {
     setRequestData({
       organization: visitor.organization || "",
       personToMeet: visitor.personToMeet || "",
-      purpose: visitor.purpose || ""
+      purpose: visitor.purpose || "",
     });
 
     setShowRequest(true);
@@ -169,30 +203,25 @@ function App() {
 
     try {
       if (editingRequest) {
-        await api.put(
-          `/${editingRequest._id}`,
-          requestData
-        );
+        await api.put(`/${editingRequest._id}`, requestData);
 
         alert("Visit request updated.");
       } else {
         await api.post("/", requestData);
 
-        alert(
-          "Visit request sent. An admin will approve it."
-        );
+        alert("Visit request sent. An admin will approve it.");
       }
 
       setRequestData({
         organization: "",
         personToMeet: "",
-        purpose: ""
+        purpose: "",
       });
 
       setEditingRequest(null);
       setShowRequest(false);
 
-      fetchVisitors();
+      loadVisitors();
     } catch (error) {
       console.error("Error saving request:", error);
 
@@ -222,7 +251,7 @@ function App() {
       resetForm();
       setShowForm(false);
 
-      fetchVisitors();
+      loadVisitors();
     } catch (error) {
       console.error("Error adding visitor:", error);
 
@@ -252,7 +281,7 @@ function App() {
       email: visitor.email || "",
       organization: visitor.organization,
       personToMeet: visitor.personToMeet,
-      purpose: visitor.purpose
+      purpose: visitor.purpose,
     });
 
     setShowForm(true);
@@ -266,17 +295,14 @@ function App() {
     e.preventDefault();
 
     try {
-      await api.put(
-        `/${editingVisitor._id}`,
-        formData
-      );
+      await api.put(`/${editingVisitor._id}`, formData);
 
       alert("Visitor updated successfully!");
 
       resetForm();
       setShowForm(false);
 
-      fetchVisitors();
+      loadVisitors();
     } catch (error) {
       console.error("Error updating visitor:", error);
 
@@ -294,23 +320,19 @@ function App() {
 
   const updateStatus = async (visitor, status) => {
     if (!canManageVisitors) {
-      alert(
-        "You do not have permission to update visitors."
-      );
+      alert("You do not have permission to update visitors.");
       return;
     }
 
     try {
       await api.put(`/${visitor._id}`, { status });
 
-      fetchVisitors();
+      loadVisitors();
     } catch (error) {
       console.error("Error updating status:", error);
 
       if (error.response?.status === 403) {
-        alert(
-          "You do not have permission to update visitors."
-        );
+        alert("You do not have permission to update visitors.");
       } else {
         alert("Failed to update visitor");
       }
@@ -340,7 +362,7 @@ function App() {
 
       alert("Visitor deleted successfully!");
 
-      fetchVisitors();
+      loadVisitors();
     } catch (error) {
       console.error("Error deleting visitor:", error);
 
@@ -356,21 +378,25 @@ function App() {
   // VISIBLE RECORDS
   // ============================================
 
-  // The server already scopes results per role, so
-  // the client uses the response as-is
   const visibleVisitors = visitors;
 
   // ============================================
-  // SEARCH
+  // SEARCH + STATUS FILTER
   // ============================================
 
-  const filteredVisitors = visibleVisitors.filter(
-    (visitor) =>
-      visitor.visitorName
-        .toLowerCase()
-        .includes(search.toLowerCase()) ||
-      visitor.mobileNumber.includes(search)
-  );
+  const filteredVisitors = visibleVisitors.filter((visitor) => {
+    const term = search.toLowerCase();
+
+    const matchesSearch =
+      (visitor.visitorName || "").toLowerCase().includes(term) ||
+      (visitor.mobileNumber || "").includes(search) ||
+      (visitor.organization || "").toLowerCase().includes(term);
+
+    const matchesStatus =
+      statusFilter === "All" || visitor.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   // ============================================
   // STATISTICS
@@ -389,17 +415,103 @@ function App() {
   ).length;
 
   // ============================================
+  // WEEKLY ACTIVITY CHART
+  // ============================================
+
+  const chart = useMemo(() => {
+    const days = [];
+    const today = new Date();
+
+    for (let i = 6; i >= 0; i -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+
+      const count = visitors.filter((visitor) => {
+        const stamp = new Date(visitor.visitDateTime);
+
+        return (
+          stamp.getDate() === date.getDate() &&
+          stamp.getMonth() === date.getMonth() &&
+          stamp.getFullYear() === date.getFullYear()
+        );
+      }).length;
+
+      days.push({
+        label: date.toLocaleDateString("en-US", { weekday: "short" }),
+        count,
+      });
+    }
+
+    return days;
+  }, [visitors]);
+
+  const chartPoints = useMemo(() => {
+    const width = 720;
+    const height = 220;
+    const max = Math.max(...chart.map((day) => day.count), 4);
+    const step = width / Math.max(chart.length - 1, 1);
+
+    const points = chart.map((day, index) => ({
+      x: index * step,
+      y: height - (day.count / max) * (height - 30) - 12,
+    }));
+
+    const line = points
+      .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
+      .join(" ");
+
+    const area = `${line} L${width},${height} L0,${height} Z`;
+
+    return { line, area, points };
+  }, [chart]);
+
+  // ============================================
+  // AI INSIGHTS
+  // ============================================
+
+  const insights = useMemo(() => {
+    const peak = chart.reduce(
+      (best, day) => (day.count > best.count ? day : best),
+      { label: "—", count: 0 }
+    );
+
+    const list = [];
+
+    list.push(
+      pending
+        ? `${pending} visit ${
+            pending === 1 ? "request needs" : "requests need"
+          } your approval.`
+        : "All visit requests are cleared."
+    );
+
+    list.push(
+      checkedIn
+        ? `${checkedIn} ${
+            checkedIn === 1 ? "visitor is" : "visitors are"
+          } currently on site.`
+        : "No visitors are on site right now."
+    );
+
+    if (peak.count > 0) {
+      list.push(`Busiest day this week: ${peak.label}.`);
+    }
+
+    return list;
+  }, [pending, checkedIn, chart]);
+
+  // ============================================
   // STATUS STYLE
   // ============================================
 
   const statusClass = (status) => {
     if (status === "Pending") {
-      return "status pending";
+      return "chip pending";
     }
 
     return status === "Checked In"
-      ? "status checked-in"
-      : "status checked-out";
+      ? "chip checked-in"
+      : "chip checked-out";
   };
 
   // ============================================
@@ -424,1019 +536,641 @@ function App() {
     setShowForm(true);
   };
 
+  const initials = (user.name || "U").charAt(0).toUpperCase();
+
+  // ============================================
+  // PAGE META
+  // ============================================
+
+  const pageTitle =
+    currentPage === "dashboard"
+      ? "Dashboard"
+      : isAdmin
+      ? "Visitors"
+      : "My Visits";
+
+  const pageSubtitle =
+    currentPage === "dashboard"
+      ? "Live overview of every visitor moving through your gate."
+      : isAdmin
+      ? "Search, approve and manage every visitor record."
+      : "Track the status of the visits you have requested.";
+
+  // ============================================
+  // SHARED TABLE BLOCKS
+  // ============================================
+
+  const statCards = [
+    {
+      label: "Total Visitors",
+      value: visitors.length,
+      icon: Users,
+      tone: "violet",
+      hint: "All time records",
+    },
+    {
+      label: "On Site",
+      value: checkedIn,
+      icon: UserCheck,
+      tone: "mint",
+      hint: "Checked in right now",
+    },
+    {
+      label: "Pending",
+      value: pending,
+      icon: Clock,
+      tone: "amber",
+      hint: "Awaiting approval",
+    },
+    {
+      label: "Completed",
+      value: checkedOut,
+      icon: CheckCircle2,
+      tone: "rose",
+      hint: "Checked out visits",
+    },
+  ];
+
+  const filterTabs = ["All", "Pending", "Checked In", "Checked Out"];
+
   // ============================================
   // UI
   // ============================================
 
   return (
     <div className="app">
+      <div className="ambient" aria-hidden="true" />
 
       {/* ==========================================
           SIDEBAR
       ========================================== */}
 
       <aside className="sidebar">
-
-        {/* LOGO */}
-
-        <div className="logo">
-
-          <img className="logo-icon" src="/favicon.ico" alt="VisitEase" />
-
-          <div>
-            <h2>VisitEase</h2>
-            <span>Visitor Management</span>
+        <div className="brand">
+          <div className="brand-mark">
+            <Sparkles size={18} />
           </div>
-
+          <div className="brand-text">
+            <strong>VisitEase</strong>
+            <span>AI Visitor Desk</span>
+          </div>
         </div>
 
-        {/* NAVIGATION */}
-
-        <nav>
+        <nav className="nav">
+          <p className="nav-label">Workspace</p>
 
           {isAdmin && (
-            <a
-              className={
-                activePage === "dashboard"
-                  ? "active"
-                  : ""
-              }
-              onClick={() =>
-                setActivePage("dashboard")
-              }
+            <button
+              className={`nav-item ${
+                currentPage === "dashboard" ? "active" : ""
+              }`}
+              onClick={() => setActivePage("dashboard")}
             >
-              Dashboard
-            </a>
+              <LayoutDashboard size={18} />
+              <span>Dashboard</span>
+            </button>
           )}
 
-          <a
-            className={
-              activePage === "visitors"
-                ? "active"
-                : ""
-            }
-            onClick={() =>
-              setActivePage("visitors")
-            }
-          >
-            Visitors
-          </a>
-
-        </nav>
-
-        {/* USER INFO */}
-
-        <div className="sidebar-user">
-
-          <div className="user-avatar">
-            {user.name?.charAt(0).toUpperCase()}
-          </div>
-
-          <div className="user-details">
-
-            <strong>
-              {user.name}
-            </strong>
-
-            <span>
-              {user.role}
-            </span>
-
-          </div>
-
           <button
-            className="logout-btn"
-            onClick={handleLogout}
+            className={`nav-item ${
+              currentPage === "visitors" ? "active" : ""
+            }`}
+            onClick={() => setActivePage("visitors")}
           >
-            Logout
+            <Users size={18} />
+            <span>{isAdmin ? "Visitors" : "My Visits"}</span>
           </button>
 
-        </div>
+          <button
+            className="nav-item"
+            onClick={() => setActivePage("dashboard")}
+            disabled={!isAdmin}
+          >
+            <CalendarClock size={18} />
+            <span>Schedule</span>
+          </button>
+        </nav>
 
-        {/* SIDEBAR BOTTOM */}
-
-        <div className="sidebar-bottom">
-
+        <div className="ai-card">
+          <div className="ai-card-icon">
+            <Bot size={16} />
+          </div>
+          <strong>AI Assistant</strong>
           <p>
-            Employee Visitor System
+            Insights update automatically as visitors arrive and leave.
           </p>
-
-          <span>
-            MERN Stack Application
-          </span>
-
         </div>
 
+        <div className="sidebar-user">
+          <div className="user-avatar">{initials}</div>
+          <div className="user-details">
+            <strong>{user.name}</strong>
+            <span className="role-pill">{user.role}</span>
+          </div>
+          <button
+            className="icon-btn"
+            title="Logout"
+            aria-label="Logout"
+            onClick={handleLogout}
+          >
+            <LogOut size={17} />
+          </button>
+        </div>
       </aside>
-
 
       {/* ==========================================
           MAIN CONTENT
       ========================================== */}
 
       <main className="main-content">
+        <header className="topbar">
+          <div>
+            <h1>{pageTitle}</h1>
+            <p>{pageSubtitle}</p>
+          </div>
 
+          <div className="topbar-actions">
+            <div className="search-wrap">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Search visitors..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {canManageVisitors ? (
+              <button className="primary-btn" onClick={openAddForm}>
+                <Plus size={17} />
+                Add Visitor
+              </button>
+            ) : (
+              <button
+                className="primary-btn"
+                onClick={() => setShowRequest(true)}
+              >
+                <Plus size={17} />
+                Request a Visit
+              </button>
+            )}
+          </div>
+        </header>
 
         {/* ========================================
             DASHBOARD PAGE
         ======================================== */}
 
-        {activePage === "dashboard" && (
-
+        {currentPage === "dashboard" && (
           <>
-
-            {/* HEADER */}
-
-            <header className="topbar">
-
-              <div>
-
-                <h1>
-                  Dashboard
-                </h1>
-
-                <p>
-                  Welcome to your visitor management dashboard.
-                </p>
-
-              </div>
-
-              {/* ADMIN + RECEPTIONIST ONLY */}
-
-              {canManageVisitors && (
-
-                <button
-                  className="add-btn"
-                  onClick={openAddForm}
-                >
-                  + Add Visitor
-                </button>
-
-              )}
-
-            </header>
-
-
-            {/* STATISTICS */}
-
             <section className="stats">
+              {statCards.map((card) => {
+                const Icon = card.icon;
 
-              {/* TOTAL */}
+                return (
+                  <article className="stat-card" key={card.label}>
+                    <div className="stat-head">
+                      <span>{card.label}</span>
+                      <div className={`stat-icon ${card.tone}`}>
+                        <Icon size={17} />
+                      </div>
+                    </div>
 
-              <div className="stat-card">
+                    <strong className="stat-value">{card.value}</strong>
 
-                <div>
-
-                  <span>
-                    Total Visitors
-                  </span>
-
-                  <h2>
-                    {visitors.length}
-                  </h2>
-
-                </div>
-
-                <div className="stat-icon blue">
-                  👥
-                </div>
-
-              </div>
-
-
-              {/* CHECKED IN */}
-
-              <div className="stat-card">
-
-                <div>
-
-                  <span>
-                    Checked In
-                  </span>
-
-                  <h2>
-                    {checkedIn}
-                  </h2>
-
-                </div>
-
-                <div className="stat-icon green">
-                  ✓
-                </div>
-
-              </div>
-
-
-              {/* PENDING - REQUESTS AWAITING APPROVAL */}
-
-              <div className="stat-card">
-
-                <div>
-
-                  <span>
-                    Pending Requests
-                  </span>
-
-                  <h2>
-                    {pending}
-                  </h2>
-
-                </div>
-
-                <div className="stat-icon orange">
-                  ⏳
-                </div>
-
-              </div>
-
-
-              {/* CHECKED OUT */}
-
-              <div className="stat-card">
-
-                <div>
-
-                  <span>
-                    Checked Out
-                  </span>
-
-                  <h2>
-                    {checkedOut}
-                  </h2>
-
-                </div>
-
-                <div className="stat-icon orange">
-                  ↗
-                </div>
-
-              </div>
-
+                    <p className="stat-hint">
+                      <TrendingUp size={13} />
+                      {card.hint}
+                    </p>
+                  </article>
+                );
+              })}
             </section>
 
+            <section className="grid-two">
+              <article className="panel chart-panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>Visitor activity</h2>
+                    <p>Visits recorded over the last 7 days</p>
+                  </div>
+                  <span className="tag">
+                    <TrendingUp size={13} />
+                    Live
+                  </span>
+                </div>
 
-            {/* RECENT VISITORS */}
+                <div className="chart">
+                  <svg
+                    viewBox="0 0 720 220"
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label="Visitor activity chart"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="areaFill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#7c5cff" stopOpacity="0.45" />
+                        <stop offset="100%" stopColor="#7c5cff" stopOpacity="0" />
+                      </linearGradient>
+                      <linearGradient
+                        id="lineStroke"
+                        x1="0"
+                        y1="0"
+                        x2="1"
+                        y2="0"
+                      >
+                        <stop offset="0%" stopColor="#7c5cff" />
+                        <stop offset="100%" stopColor="#b18cff" />
+                      </linearGradient>
+                    </defs>
 
-            <section className="visitor-section">
+                    <path d={chartPoints.area} fill="url(#areaFill)" />
 
-              <div className="section-header">
+                    <path
+                      d={chartPoints.line}
+                      fill="none"
+                      stroke="url(#lineStroke)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
 
-                <div>
+                    {chartPoints.points.map((point, index) => (
+                      <circle
+                        key={index}
+                        cx={point.x}
+                        cy={point.y}
+                        r="4"
+                        fill="#0b0b12"
+                        stroke="#b18cff"
+                        strokeWidth="2.5"
+                      />
+                    ))}
+                  </svg>
 
-                  <h2>
-                    Recent Visitors
-                  </h2>
+                  <div className="chart-labels">
+                    {chart.map((day) => (
+                      <span key={day.label}>{day.label}</span>
+                    ))}
+                  </div>
+                </div>
+              </article>
 
+              <article className="panel ai-panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>AI assistant</h2>
+                    <p>Generated from today&apos;s data</p>
+                  </div>
+                  <div className="stat-icon violet">
+                    <Bot size={17} />
+                  </div>
+                </div>
+
+                <ul className="insight-list">
+                  {insights.map((item) => (
+                    <li key={item}>
+                      <Sparkles size={14} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="ai-cta">
                   <p>
-                    Latest visitor entries.
+                    {checkedIn
+                      ? `${checkedIn} guests are inside. Keep the host notified.`
+                      : "The lobby is clear. Ready for the next arrival."}
                   </p>
-
                 </div>
-
-                <button
-                  className="view-all-btn"
-                  onClick={() =>
-                    setActivePage("visitors")
-                  }
-                >
-                  View All Visitors →
-                </button>
-
-              </div>
-
-
-              <div className="table-wrapper">
-
-                <table>
-
-                  <thead>
-
-                    <tr>
-
-                      <th>
-                        Visitor
-                      </th>
-
-                      <th>
-                        Mobile
-                      </th>
-
-                      <th>
-                        Organization
-                      </th>
-
-                      <th>
-                        Person to Meet
-                      </th>
-
-                      <th>
-                        Date & Time
-                      </th>
-
-                      <th>
-                        Status
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-
-                  <tbody>
-
-                    {visitors.length === 0 ? (
-
-                      <tr>
-
-                        <td
-                          colSpan="6"
-                          className="empty"
-                        >
-                          No visitor records found.
-
-                          <br />
-
-                          <span>
-                            Add your first visitor to get started.
-                          </span>
-
-                        </td>
-
-                      </tr>
-
-                    ) : (
-
-                      visitors
-                        .slice(0, 5)
-                        .map((visitor) => (
-
-                          <tr
-                            key={visitor._id}
-                          >
-
-                            <td>
-
-                              <strong>
-                                {visitor.visitorName}
-                              </strong>
-
-                              <br />
-
-                              <small>
-                                {visitor.email}
-                              </small>
-
-                            </td>
-
-                            <td>
-                              {visitor.mobileNumber}
-                            </td>
-
-                            <td>
-                              {visitor.organization}
-                            </td>
-
-                            <td>
-                              {visitor.personToMeet}
-                            </td>
-
-                            <td>
-                              {new Date(
-                                visitor.visitDateTime
-                              ).toLocaleString()}
-                            </td>
-
-                            <td>
-
-                              <span
-                                className={statusClass(
-                                  visitor.status
-                                )}
-                              >
-                                {visitor.status}
-                              </span>
-
-                            </td>
-
-                          </tr>
-
-                        ))
-
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
+              </article>
             </section>
 
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <h2>Recent visitors</h2>
+                  <p>Latest entries from the reception desk</p>
+                </div>
+                <button
+                  className="ghost-btn"
+                  onClick={() => setActivePage("visitors")}
+                >
+                  View all
+                  <ArrowUpRight size={15} />
+                </button>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Visitor</th>
+                      <th>Mobile</th>
+                      <th>Organization</th>
+                      <th>Person to Meet</th>
+                      <th>Date &amp; Time</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visitors.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="empty">
+                          No visitor records found.
+                        </td>
+                      </tr>
+                    ) : (
+                      visitors.slice(0, 5).map((visitor) => (
+                        <tr key={visitor._id}>
+                          <td>
+                            <div className="person">
+                              <div className="mini-avatar">
+                                {(visitor.visitorName || "V")
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+                              <div>
+                                <strong>{visitor.visitorName}</strong>
+                                <small>{visitor.email || "—"}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{visitor.mobileNumber}</td>
+                          <td>{visitor.organization}</td>
+                          <td>{visitor.personToMeet}</td>
+                          <td className="muted-cell">
+                            {new Date(
+                              visitor.visitDateTime
+                            ).toLocaleString()}
+                          </td>
+                          <td>
+                            <span className={statusClass(visitor.status)}>
+                              {visitor.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </>
-
         )}
-
 
         {/* ========================================
             VISITORS PAGE
         ======================================== */}
 
-        {activePage === "visitors" && (
-
+        {currentPage === "visitors" && (
           <>
-
-            {/* HEADER */}
-
-            <header className="topbar">
-
-              <div>
-
-                <h1>
-                  {isAdmin ? "Visitors" : "My Visits"}
-                </h1>
-
-                <p>
-                  {isAdmin
-                    ? "Manage all visitor records."
-                    : "View the visits recorded for your account."}
-                </p>
-
-              </div>
-
-              {/* ADMIN + RECEPTIONIST */}
-
-              {canManageVisitors && (
-
-                <button
-                  className="add-btn"
-                  onClick={openAddForm}
-                >
-                  + Add Visitor
-                </button>
-
-              )}
-
-            </header>
-
-
-            {/* ADMIN ONLY TABLE */}
-
-            {isAdmin && (
-
-            <section className="visitor-section">
-
-              <div className="section-header">
-
+            <section className="panel">
+              <div className="panel-head">
                 <div>
-
-                    <h2>
-                      All Visitors
-                    </h2>
-
-                    <p>
-                      View and manage all visitor entries.
-                    </p>
-
+                  <h2>{isAdmin ? "All visitors" : "My visit history"}</h2>
+                  <p>
+                    {isAdmin
+                      ? "Every record captured at your gate."
+                      : "Your visit requests and their current status."}
+                  </p>
                 </div>
 
-
-                {/* SEARCH */}
-
-                <input
-                  type="text"
-                  placeholder="Search by name or mobile..."
-                  className="search-box"
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
-                />
-
+                <div className="tabs">
+                  {filterTabs.map((tab) => (
+                    <button
+                      key={tab}
+                      className={`tab ${statusFilter === tab ? "active" : ""}`}
+                      onClick={() => setStatusFilter(tab)}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-
-              {/* TABLE */}
-
-              <div className="table-wrapper">
-
-                <table>
-
-                  <thead>
-
-                    <tr>
-
-                      <th>
-                        Visitor
-                      </th>
-
-                      <th>
-                        Mobile
-                      </th>
-
-                      <th>
-                        Organization
-                      </th>
-
-                      <th>
-                        Person to Meet
-                      </th>
-
-                      <th>
-                        Purpose
-                      </th>
-
-                      <th>
-                        Date & Time
-                      </th>
-
-                      <th>
-                        Status
-                      </th>
-
-                      <th>
-                        Actions
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-
-                  <tbody>
-
-                    {filteredVisitors.length === 0 ? (
-
+              {isAdmin ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
                       <tr>
-
-                        <td
-                          colSpan="8"
-                          className="empty"
-                        >
-
-                          No visitor records found.
-
-                          <br />
-
-                          <span>
-                            Add your first visitor to get started.
-                          </span>
-
-                        </td>
-
+                        <th>Visitor</th>
+                        <th>Mobile</th>
+                        <th>Organization</th>
+                        <th>Person to Meet</th>
+                        <th>Purpose</th>
+                        <th>Date &amp; Time</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                       </tr>
-
-                    ) : (
-
-                      filteredVisitors.map(
-                        (visitor) => (
-
-                          <tr
-                            key={visitor._id}
-                          >
-
-                            {/* VISITOR */}
-
+                    </thead>
+                    <tbody>
+                      {filteredVisitors.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="empty">
+                            No visitor records found.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredVisitors.map((visitor) => (
+                          <tr key={visitor._id}>
                             <td>
-
-                              <strong>
-                                {visitor.visitorName}
-                              </strong>
-
-                              <br />
-
-                              <small>
-                                {visitor.email}
-                              </small>
-
+                              <div className="person">
+                                <div className="mini-avatar">
+                                  {(visitor.visitorName || "V")
+                                    .charAt(0)
+                                    .toUpperCase()}
+                                </div>
+                                <div>
+                                  <strong>{visitor.visitorName}</strong>
+                                  <small>{visitor.email || "—"}</small>
+                                </div>
+                              </div>
                             </td>
-
-
-                            {/* MOBILE */}
-
-                            <td>
-                              {visitor.mobileNumber}
-                            </td>
-
-
-                            {/* ORGANIZATION */}
-
-                            <td>
-                              {visitor.organization}
-                            </td>
-
-
-                            {/* PERSON */}
-
-                            <td>
-                              {visitor.personToMeet}
-                            </td>
-
-
-                            {/* PURPOSE */}
-
-                            <td>
-                              {visitor.purpose}
-                            </td>
-
-
-                            {/* DATE */}
-
-                            <td>
+                            <td>{visitor.mobileNumber}</td>
+                            <td>{visitor.organization}</td>
+                            <td>{visitor.personToMeet}</td>
+                            <td className="muted-cell">{visitor.purpose}</td>
+                            <td className="muted-cell">
                               {new Date(
                                 visitor.visitDateTime
                               ).toLocaleString()}
                             </td>
-
-
-                            {/* STATUS */}
-
                             <td>
-
-                              <span
-                                className={statusClass(
-                                  visitor.status
-                                )}
-                              >
+                              <span className={statusClass(visitor.status)}>
                                 {visitor.status}
                               </span>
-
                             </td>
-
-
-                            {/* ACTIONS */}
-
                             <td>
-
                               <div className="actions">
-
-                                {/* EDIT */}
-
                                 {canManageVisitors && (
-
                                   <button
-                                    className="edit-btn"
-                                    onClick={() =>
-                                      handleEdit(
-                                        visitor
-                                      )
-                                    }
+                                    className="table-btn violet"
+                                    onClick={() => handleEdit(visitor)}
                                   >
                                     Edit
                                   </button>
-
                                 )}
 
-
-                                {/* APPROVE - PENDING ONLY */}
-
                                 {canManageVisitors &&
-                                  visitor.status ===
-                                    "Pending" && (
-
+                                  visitor.status === "Pending" && (
                                     <button
-                                      className="checkout-btn"
+                                      className="table-btn mint"
                                       onClick={() =>
-                                        updateStatus(
-                                          visitor,
-                                          "Checked In"
-                                        )
+                                        updateStatus(visitor, "Checked In")
                                       }
                                     >
                                       Approve
                                     </button>
-
                                   )}
 
-
-                                {/* CHECK OUT */}
-
                                 {canManageVisitors &&
-                                  visitor.status ===
-                                    "Checked In" && (
-
+                                  visitor.status === "Checked In" && (
                                     <button
-                                      className="checkout-btn"
+                                      className="table-btn amber"
                                       onClick={() =>
-                                        updateStatus(
-                                          visitor,
-                                          "Checked Out"
-                                        )
+                                        updateStatus(visitor, "Checked Out")
                                       }
                                     >
                                       Check Out
                                     </button>
-
                                   )}
 
-
-                                {/* DELETE - ADMIN ONLY */}
-
                                 {isAdmin && (
-
                                   <button
-                                    className="delete-btn"
+                                    className="table-btn rose"
                                     onClick={() =>
-                                      deleteVisitor(
-                                        visitor._id
-                                      )
+                                      deleteVisitor(visitor._id)
                                     }
                                   >
                                     Delete
                                   </button>
-
                                 )}
 
-                                {/* VIEWER MESSAGE */}
-
-                                {!canManageVisitors &&
-                                  !isAdmin && (
-
-                                  <span
-                                    style={{
-                                      color: "#64748b",
-                                      fontSize: "13px"
-                                    }}
-                                  >
-                                    View Only
-                                  </span>
-
+                                {!isAdmin && (
+                                  <span className="muted-cell">View only</span>
                                 )}
-
                               </div>
-
                             </td>
-
                           </tr>
-
-                        )
-                      )
-
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-            </section>
-
-            )}
-
-
-            {/* ========================================
-                MY VISITS - VISITOR ROLE ONLY
-            ======================================== */}
-
-            {!isAdmin && (
-
-            <section className="visitor-section">
-
-              <div className="section-header">
-
-                <div>
-
-                  <h2>
-                    My Visit History
-                  </h2>
-
-                  <p>
-                    Your visit requests and their current status.
-                  </p>
-
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-
-                <button
-                  className="add-btn"
-                  onClick={() => setShowRequest(true)}
-                >
-                  + Request a Visit
-                </button>
-
-              </div>
-
-              <div className="table-wrapper">
-
-                <table>
-
-                  <thead>
-
-                    <tr>
-
-                      <th>
-                        Person to Meet
-                      </th>
-
-                      <th>
-                        Organization
-                      </th>
-
-                      <th>
-                        Purpose
-                      </th>
-
-                      <th>
-                        Date & Time
-                      </th>
-
-                      <th>
-                        Status
-                      </th>
-
-                      <th>
-                        Actions
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-
-                    {visibleVisitors.length === 0 ? (
-
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
                       <tr>
-
-                        <td
-                          colSpan="6"
-                          className="empty"
-                        >
-
-                          You have no visit requests yet.
-
-                          <br />
-
-                          <span>
-                            Use &quot;Request a Visit&quot; to schedule one.
-
-                          </span>
-
-                        </td>
-
+                        <th>Person to Meet</th>
+                        <th>Organization</th>
+                        <th>Purpose</th>
+                        <th>Date &amp; Time</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                       </tr>
-
-                    ) : (
-
-                      visibleVisitors.map(
-                        (visitor) => (
-
-                          <tr
-                            key={visitor._id}
-                          >
-
+                    </thead>
+                    <tbody>
+                      {filteredVisitors.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="empty">
+                            You have no visit requests yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredVisitors.map((visitor) => (
+                          <tr key={visitor._id}>
                             <td>
-                              <strong>
-                                {visitor.personToMeet}
-                              </strong>
+                              <strong>{visitor.personToMeet}</strong>
                             </td>
-
-                            <td>
-                              {visitor.organization}
-                            </td>
-
-                            <td>
-                              {visitor.purpose}
-                            </td>
-
-                            <td>
+                            <td>{visitor.organization}</td>
+                            <td className="muted-cell">{visitor.purpose}</td>
+                            <td className="muted-cell">
                               {new Date(
                                 visitor.visitDateTime
                               ).toLocaleString()}
                             </td>
-
                             <td>
-
-                              <span
-                                className={statusClass(
-                                  visitor.status
-                                )}
-                              >
+                              <span className={statusClass(visitor.status)}>
                                 {visitor.status}
                               </span>
-
                             </td>
-
                             <td>
-
                               <div className="actions">
-
-                                {visitor.status ===
-                                  "Pending" ? (
-
+                                {visitor.status === "Pending" ? (
                                   <button
-                                    className="edit-btn"
+                                    className="table-btn violet"
                                     onClick={() =>
-                                      handleEditRequest(
-                                        visitor
-                                      )
+                                      handleEditRequest(visitor)
                                     }
                                   >
                                     Edit
                                   </button>
-
                                 ) : (
-
-                                  <span
-                                    style={{
-                                      color: "#64748b",
-                                      fontSize: "13px"
-                                    }}
-                                  >
-                                    Locked
-                                  </span>
-
+                                  <span className="muted-cell">Locked</span>
                                 )}
-
                               </div>
-
                             </td>
-
                           </tr>
-
-                        )
-                      )
-
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
-
-            )}
-
           </>
-
         )}
-
 
         {/* ========================================
             VISITOR REQUEST MODAL
         ======================================== */}
 
         {showRequest && !isAdmin && (
-
           <div className="modal-overlay">
-
             <div className="modal">
-
               <div className="modal-header">
-
                 <div>
-
                   <h2>
                     {editingRequest
-                      ? "Edit Visit Request"
-                      : "Request a Visit"}
+                      ? "Edit visit request"
+                      : "Request a visit"}
                   </h2>
-
                   <p>
                     {editingRequest
                       ? "Update the details of your request."
                       : "Tell us who you are meeting and why."}
                   </p>
-
                 </div>
 
                 <button
-                  className="close-btn"
+                  className="icon-btn"
+                  aria-label="Close"
                   onClick={() => {
                     setEditingRequest(null);
                     setShowRequest(false);
                   }}
                 >
-                  ×
+                  <X size={18} />
                 </button>
-
               </div>
 
               <form onSubmit={handleRequestSubmit}>
-
                 <div className="form-grid">
-
                   <div className="form-group">
-
-                    <label>
-                      Your Name
-                    </label>
-
-                    <input
-                      type="text"
-                      value={user.name}
-                      disabled
-                    />
-
+                    <label>Your Name</label>
+                    <input type="text" value={user.name} disabled />
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Organization / College
-                    </label>
-
+                    <label>Organization / College</label>
                     <input
                       type="text"
                       name="organization"
@@ -1445,19 +1179,14 @@ function App() {
                       onChange={(e) =>
                         setRequestData({
                           ...requestData,
-                          organization: e.target.value
+                          organization: e.target.value,
                         })
                       }
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Person to Meet
-                    </label>
-
+                    <label>Person to Meet</label>
                     <input
                       type="text"
                       name="personToMeet"
@@ -1466,20 +1195,15 @@ function App() {
                       onChange={(e) =>
                         setRequestData({
                           ...requestData,
-                          personToMeet: e.target.value
+                          personToMeet: e.target.value,
                         })
                       }
                       required
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Purpose of Visit
-                    </label>
-
+                    <label>Purpose of Visit</label>
                     <input
                       type="text"
                       name="purpose"
@@ -1488,21 +1212,18 @@ function App() {
                       onChange={(e) =>
                         setRequestData({
                           ...requestData,
-                          purpose: e.target.value
+                          purpose: e.target.value,
                         })
                       }
                       required
                     />
-
                   </div>
-
                 </div>
 
                 <div className="modal-actions">
-
                   <button
                     type="button"
-                    className="cancel-btn"
+                    className="secondary-btn"
                     onClick={() => {
                       setEditingRequest(null);
                       setShowRequest(false);
@@ -1510,228 +1231,126 @@ function App() {
                   >
                     Cancel
                   </button>
-
-                  <button
-                    type="submit"
-                    className="save-btn"
-                  >
-                    {editingRequest
-                      ? "Update Request"
-                      : "Send Request"}
+                  <button type="submit" className="primary-btn">
+                    {editingRequest ? "Update request" : "Send request"}
                   </button>
-
                 </div>
-
               </form>
-
             </div>
-
           </div>
-
         )}
-
 
         {/* ========================================
             ADD / EDIT MODAL
         ======================================== */}
 
         {showForm && canManageVisitors && (
-
           <div className="modal-overlay">
-
             <div className="modal">
-
-              {/* MODAL HEADER */}
-
               <div className="modal-header">
-
                 <div>
-
                   <h2>
-
-                    {editingVisitor
-                      ? "Edit Visitor"
-                      : "Add New Visitor"}
-
+                    {editingVisitor ? "Edit visitor" : "Add new visitor"}
                   </h2>
-
                   <p>
-
                     {editingVisitor
                       ? "Update the visitor's information."
                       : "Enter the visitor's information."}
-
                   </p>
-
                 </div>
 
-
                 <button
-                  className="close-btn"
+                  className="icon-btn"
+                  aria-label="Close"
                   onClick={() => {
                     resetForm();
                     setShowForm(false);
                   }}
                 >
-                  ×
+                  <X size={18} />
                 </button>
-
               </div>
 
-
-              {/* FORM */}
-
               <form
-                onSubmit={
-                  editingVisitor
-                    ? handleUpdate
-                    : handleSubmit
-                }
+                onSubmit={editingVisitor ? handleUpdate : handleSubmit}
               >
-
                 <div className="form-grid">
-
-
-                  {/* VISITOR NAME */}
-
                   <div className="form-group">
-
-                    <label>
-                      Visitor Name
-                    </label>
-
+                    <label>Visitor Name</label>
                     <input
                       type="text"
                       name="visitorName"
                       placeholder="Enter visitor name"
-                      value={
-                        formData.visitorName
-                      }
+                      value={formData.visitorName}
                       onChange={handleChange}
                       required
                     />
-
                   </div>
 
-
-                  {/* MOBILE */}
-
                   <div className="form-group">
-
-                    <label>
-                      Mobile Number
-                    </label>
-
+                    <label>Mobile Number</label>
                     <input
                       type="tel"
                       name="mobileNumber"
                       placeholder="Enter mobile number"
-                      value={
-                        formData.mobileNumber
-                      }
+                      value={formData.mobileNumber}
                       onChange={handleChange}
                       required
                     />
-
                   </div>
 
-
-                  {/* EMAIL */}
-
                   <div className="form-group">
-
-                    <label>
-                      Email Address
-                    </label>
-
+                    <label>Email Address</label>
                     <input
                       type="email"
                       name="email"
                       placeholder="Enter email address"
-                      value={
-                        formData.email
-                      }
+                      value={formData.email}
                       onChange={handleChange}
                     />
-
                   </div>
 
-
-                  {/* ORGANIZATION */}
-
                   <div className="form-group">
-
-                    <label>
-                      Organization / College
-                    </label>
-
+                    <label>Organization / College</label>
                     <input
                       type="text"
                       name="organization"
                       placeholder="Enter organization"
-                      value={
-                        formData.organization
-                      }
+                      value={formData.organization}
                       onChange={handleChange}
                       required
                     />
-
                   </div>
 
-
-                  {/* PERSON */}
-
                   <div className="form-group">
-
-                    <label>
-                      Person to Meet
-                    </label>
-
+                    <label>Person to Meet</label>
                     <input
                       type="text"
                       name="personToMeet"
                       placeholder="Enter employee name"
-                      value={
-                        formData.personToMeet
-                      }
+                      value={formData.personToMeet}
                       onChange={handleChange}
                       required
                     />
-
                   </div>
 
-
-                  {/* PURPOSE */}
-
                   <div className="form-group">
-
-                    <label>
-                      Purpose of Visit
-                    </label>
-
+                    <label>Purpose of Visit</label>
                     <input
                       type="text"
                       name="purpose"
                       placeholder="Enter purpose"
-                      value={
-                        formData.purpose
-                      }
+                      value={formData.purpose}
                       onChange={handleChange}
                       required
                     />
-
                   </div>
-
                 </div>
 
-
-                {/* MODAL ACTIONS */}
-
                 <div className="modal-actions">
-
                   <button
                     type="button"
-                    className="cancel-btn"
+                    className="secondary-btn"
                     onClick={() => {
                       resetForm();
                       setShowForm(false);
@@ -1739,30 +1358,15 @@ function App() {
                   >
                     Cancel
                   </button>
-
-                  <button
-                    type="submit"
-                    className="save-btn"
-                  >
-
-                    {editingVisitor
-                      ? "Update Visitor"
-                      : "Add Visitor"}
-
+                  <button type="submit" className="primary-btn">
+                    {editingVisitor ? "Update visitor" : "Add visitor"}
                   </button>
-
                 </div>
-
               </form>
-
             </div>
-
           </div>
-
         )}
-
       </main>
-
     </div>
   );
 }
